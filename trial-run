@@ -1,0 +1,181 @@
+#!/usr/bin/env python3
+
+# trial-run
+#
+# Copyright (C) 2022 James D. Lin
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as published by
+# the Free Software Foundation, either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+"""
+Executes a specified command in its dry-run mode, interactively prompts for
+confirmation, and re-executes it for real.
+"""
+
+import getopt
+import os
+import shlex
+import subprocess
+import sys
+import typing
+
+import python_cli_utils.choices_prompt
+
+
+_VERSION = "1.0"
+
+
+def run_command(command: typing.Sequence[str], verbose: bool) -> subprocess.CompletedProcess:
+    """Wrapper around `subprocess.run` that can print the executed command."""
+    if verbose:
+        print(f"{__name__}: {command}")
+    return subprocess.run(command, check=False)
+
+
+_USAGE_TEXT = """
+Options:
+    -c COMMAND, --command=COMMAND
+        Specifies the command to execute.  See the "Command-Line Construction"
+        section below.
+
+        If specified, all positional (non-option) arguments are assumed to be
+        arguments to the specified command.
+
+        If not specified, the command is assumed to be the first positional
+        argument.
+
+    --option=OPTION
+        The argument to pass to the command to run it in its dry-run mode.  If
+        not specified, defaults to `--dry-run`.
+
+    -v, --verbose
+        Prints the executed command-lines.
+
+Command-Line Construction:
+    {name} constructs a command-line by inserting an option (by default,
+    `--dry-run`) after the specified command and before any remaining
+    arguments.
+
+    Invoking either:
+
+        {name} COMMAND [ARGUMENT ...]
+
+    or:
+
+        {name} --command=COMMAND [ARGUMENT ...]
+
+    will execute the command-lines:
+
+        COMMAND --dry-run [ARGUMENT ...]
+        COMMAND [ARGUMENT ...]
+
+    The `--command` option is useful if the dry-run option must be passed to
+    the subcommand of a main command.  For example:
+
+        {name} --command="MAIN_COMMAND --OPTION SUBCOMMAND" -- --SUBOPTION
+
+    will execute the command-lines:
+
+        MAIN_COMMAND --OPTION SUBCOMMAND --dry-run --SUBOPTION
+        MAIN_COMMAND --OPTION SUBCOMMAND --SUBOPTION
+
+    Note that in the above example, `--` is necessary to prevent `--SUBOPTION`
+    from being treated as an option to {name} itself.
+"""
+
+
+def usage(*, full: bool = False, file: typing.TextIO = sys.stdout) -> None:
+    """Prints usage information."""
+    print(f"Usage: {__name__} [OPTIONS] [--] COMMAND [ARGUMENT ...]\n"
+          f"       {__name__} [OPTIONS] --command=COMMAND [--] [ARGUMENT ...]\n"
+          f"       {__name__} --help\n",
+          file=file,
+          end="")
+    if full:
+        formatted_usage_text = _USAGE_TEXT.format(name=__name__)
+        print(f"\n"
+              f"{__doc__.strip()}\n"
+              f"\n"
+              f"{formatted_usage_text.strip()}\n",
+              file=file,
+              end="")
+
+
+def main(argv: typing.List[str]) -> int:
+    # Use getopt instead of argparse because we explicitly want to leave the
+    # command-line arguments alone without permutation or other heuristics, and
+    # argparse obnoxiously does not allow disabling that.
+    try:
+        (opts, args) = getopt.getopt(argv[1:],
+                                     "hc:v",
+                                     ["help",
+                                      "command=",
+                                      "option=",
+                                      "verbose",
+                                      "version"])
+    except getopt.GetoptError as e:
+        print(str(e), file=sys.stderr)
+        usage(file=sys.stderr)
+        return 1
+
+    command: typing.Optional[typing.Iterable[str]] = None
+    dry_run_option: str = "--dry-run"
+    verbose: bool = False
+
+    for (o, a) in opts:
+        if o in ("-h", "--help"):
+            usage(full=True)
+            return 0
+        elif o in ("-c", "--command"):
+            command = shlex.split(a, posix=(os.name == "posix"))
+        elif o == "--option":
+            dry_run_option = a
+        elif o in ("-v", "--verbose"):
+            verbose = True
+        elif o == "--version":
+            print(f"{__name__} {_VERSION}")
+            return 0
+
+    try:
+        command = command or (args.pop(0),)
+        result = run_command((*command, dry_run_option, *args), verbose=verbose)
+        if result.returncode != 0:
+            return result.returncode
+
+        while True:
+            choice = python_cli_utils.choices_prompt("Continue? [y/N] ",
+                                                     ("yes", "no"),
+                                                     default="no")
+            if choice in ("y", "yes"):
+                break
+            if choice in ("n", "no") or not choice:
+                return 0
+
+        return run_command((*command, *args), verbose=verbose).returncode
+
+    except IndexError:
+        print(f"{__name__}: Insufficient arguments.", file=sys.stderr)
+        usage(file=sys.stderr)
+    except FileNotFoundError as e:
+        print(f"{__name__}: {e}", file=sys.stderr)
+
+    return 1
+
+
+if __name__ == "__main__":
+    __name__ = os.path.basename(__file__)  # pylint: disable=redefined-builtin
+
+    try:
+        sys.exit(main(sys.argv))
+    except KeyboardInterrupt:
+        sys.exit(1)
