@@ -153,13 +153,15 @@ def main(argv: typing.List[str]) -> int:
             return result.returncode
 
         while True:
-            choice = python_cli_utils.choices_prompt("Continue? [y/N] ",
-                                                     ("yes", "no"),
-                                                     default="no")
-            if choice in ("y", "yes"):
-                break
-            if choice in ("n", "no") or not choice:
+            choice = python_cli_utils.choices_prompt(
+                "Continue? [y/N] ",
+                (("y", "yes"), ("n", "no")),
+                default="no",
+            )
+            if choice is None or choice == "n":
                 return 0
+            if choice == "y":
+                break
 
         return run_command((*command, *args), verbose=verbose).returncode
 
