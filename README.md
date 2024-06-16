@@ -1,7 +1,7 @@
 # trial-run
 
 Executes a specified command in its dry-run mode, interactively prompts for
-confirmation, and re-executes it for real.
+confirmation, and, if confirmed, re-executes it for real.
 
 I got tired of manually executing commands with `--dry-run` options and then
 manipulating my shell's command history in potentially error-prone ways to
@@ -27,24 +27,28 @@ repository is updated.
 
 ## Examples
 
-* Invoking `trial-run rsync -aC --delete SOURCE DESTINATION` will execute:
+* **Normal usage.** `trial-run` constructs a command-line by inserting an
+  option (`--dry-run` by default) after the specified command and before any
+  remaining arguments.  For example, invoking `trial-run rsync -aC --delete
+  SOURCE DESTINATION` will execute the equivalent of:
     ```shell
-    rsync --dry-run -aC --delete SOURCE DESTINATION
+    rsync --dry-run -aC --delete SOURCE DESTINATION && \
     rsync -aC --delete SOURCE DESTINATION
     ```
 
-* Invoking `trial-run --command="MAIN_COMMAND --OPTION SUBCOMMAND" -- --SUBOPTION`
-  will execute:
+* **Controlling option placement.** Invoking `trial-run --command="MAIN_COMMAND
+  --OPTION SUBCOMMAND" -- --SUBOPTION` will execute the equivalent of:
 
     ```shell
-    MAIN_COMMAND --OPTION SUBCOMMAND --dry-run --SUBOPTION
+    MAIN_COMMAND --OPTION SUBCOMMAND --dry-run --SUBOPTION && \
     MAIN_COMMAND --OPTION SUBCOMMAND --SUBOPTION
     ```
 
-* Invoking `trial-run --command="p4 revert" --option=-n` will execute:
+* **Using a different option.** Invoking `trial-run --command="p4 revert"
+--option=-n` will execute the equivalent of:
 
     ```shell
-    p4 revert -n
+    p4 revert -n && \
     p4 revert
     ```
 

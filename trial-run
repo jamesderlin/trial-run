@@ -19,7 +19,7 @@
 
 """
 Executes a specified command in its dry-run mode, interactively prompts for
-confirmation, and re-executes it for real.
+confirmation, and, if confirmed, re-executes it for real.
 """
 
 import getopt
@@ -35,7 +35,10 @@ import python_cli_utils.choices_prompt
 _VERSION = "1.0"
 
 
-def run_command(command: typing.Sequence[str], verbose: bool) -> subprocess.CompletedProcess:
+def run_command(
+    command: typing.Sequence[str],
+    verbose: bool,
+) -> subprocess.CompletedProcess:
     """Wrapper around `subprocess.run` that can print the executed command."""
     if verbose:
         print(f"{__name__}: {command}")
@@ -62,9 +65,8 @@ Options:
         Prints the executed command-lines.
 
 Command-Line Construction:
-    {name} constructs a command-line by inserting an option (by default,
-    `--dry-run`) after the specified command and before any remaining
-    arguments.
+    {name} constructs a command-line by inserting an option (`--dry-run` by
+    default) after the specified command and before any remaining arguments.
 
     Invoking either:
 
@@ -74,9 +76,9 @@ Command-Line Construction:
 
         {name} --command=COMMAND [ARGUMENT ...]
 
-    will execute the command-lines:
+    will execute the equivalent of:
 
-        COMMAND --dry-run [ARGUMENT ...]
+        COMMAND --dry-run [ARGUMENT ...] && \\
         COMMAND [ARGUMENT ...]
 
     The `--command` option is useful if the dry-run option must be passed to
@@ -84,9 +86,9 @@ Command-Line Construction:
 
         {name} --command="MAIN_COMMAND --OPTION SUBCOMMAND" -- --SUBOPTION
 
-    will execute the command-lines:
+    will execute the equivalent of:
 
-        MAIN_COMMAND --OPTION SUBCOMMAND --dry-run --SUBOPTION
+        MAIN_COMMAND --OPTION SUBCOMMAND --dry-run --SUBOPTION && \\
         MAIN_COMMAND --OPTION SUBCOMMAND --SUBOPTION
 
     Note that in the above example, `--` is necessary to prevent `--SUBOPTION`
@@ -148,7 +150,8 @@ def main(argv: typing.List[str]) -> int:
 
     try:
         command = command or (args.pop(0),)
-        result = run_command((*command, dry_run_option, *args), verbose=verbose)
+        result = run_command((*command, dry_run_option, *args),
+                             verbose=verbose)
         if result.returncode != 0:
             return result.returncode
 
